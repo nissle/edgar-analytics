@@ -176,9 +176,9 @@ Test1: I changed the inactivity_period and modified the `log.csv` to test my cod
 
 Test2: In my own test fold, I changed the value of inactivity period from 2 seconds to 3 seconds and kept the `log.csv` file as same. The result was as same as my expected.
 
-Test3: Moreover, I would like to test my script with the big dataset, so I downloaded [a real EDGAR log file](http://www.sec.gov/dera/data/Public-EDGAR-log-file-data/2017/Qtr2/log20170630.zip), `log20170630.zip`, directly from [directly from the SEC](https://www.sec.gov/dera/data/edgar-log-file-data-set.html). But due to the file size limit on Github is 100 MB, I only fetch the first eight hundreds thousands records plus the header as my test input file. 
+Test3: Moreover, I would like to test my script with the big dataset, so I downloaded [a real EDGAR log file](http://www.sec.gov/dera/data/Public-EDGAR-log-file-data/2017/Qtr2/log20170630.zip), `log20170630.zip`, directly from [directly from the SEC](https://www.sec.gov/dera/data/edgar-log-file-data-set.html). I only fetch the first eight hundreds records plus the header as my test input file. 
 
-And I also set a 60 seconds inactivity window in `inactivity_period.txt`
+And I also set a 6 seconds inactivity window in `inactivity_period.txt`
 
 ```shell
 $ cd edgar-analytics/insight_testsuite/tests/test_2/input
