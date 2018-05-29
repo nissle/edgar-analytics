@@ -148,7 +148,7 @@ for value in temp_data.values():
         |   │   └── log.csv
         |   |__ output
         |   │   └── sessionization.txt
-        ├── your-own-test_1
+        ├── test_2
             ├── input
             │   └── your-own-inputs
             |── output
