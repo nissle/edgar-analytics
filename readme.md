@@ -225,12 +225,12 @@ DataStream<Tuple2<String, Tuple5<String, String, String, String, String>>> dataS
         .map(new ExtractFields())
     	// use EventTime (available in data) as timestamp 
         .assignTimestamps(new AccessLogTimestampsGenerator())
-		// extract <key=ip, value=dict('ip', 'first_dt', 'last_dt', 'duration', 'count')>
+	// extract <key=ip, value=dict('ip', 'first_dt', 'last_dt', 'duration', 'count')>
         .map(new ExtractKeyValue())
         // "0" means first field, which is IP, 
     	// then it will split the dataflow to different workers by IP
         .keyBy(0)
-		// set the inactivity window based on EventTime
+	// set the inactivity window based on EventTime
     	// trigger the aggregation when session is over
         .window(EventTimeSessionWindow.of(Time.hours(inactivity_window)))
         // sum column count for each IP
