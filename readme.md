@@ -1,6 +1,6 @@
 # Edgar-Analytics
 
-[TOC]
+
 ### Programming Language in this challenge
 
 Python 3 without any "exotic" packages
