@@ -1,9 +1,15 @@
 # Edgar-Analytics
 
-
-### Programming Language in this challenge
+### Libraries, Environments, Dependencies
 
 Python 3 without any "exotic" packages
+
+```python
+import csv
+import os
+import datetime
+import collections
+```
 
 ### Input & Output
 
@@ -112,7 +118,7 @@ else:
             temp_time[time].append(line['ip'])
 ```
 
-Take care of the remaining elements in dictionaries when reaching the end of reader by writing all the values in temp_data into output file by ranking order.
+Take care of the remaining elements in dictionaries when reaching the end of reader by writing all the values in `temp_data` into output file by ranking order.
 
 ```python
 # If reaching the end of input file, append the rest data to output by rank order.
@@ -121,18 +127,125 @@ for value in temp_data.values():
     csv_writer.writerow(value)
 ```
 
-### Testing
-- I changed the inactivity_period and modified the log.csv to test my code. It works well under different values of inactivity period and differnt log data. 
+### Repo directory structure
 
-- In my own test fold, I changed the value of inactivity period from 2 seconds to 3 seconds and kept the log.csv file as same. The result was as same as my expected.
-
-```bash
-[PASS]: test_1 sessionization.txt
-[PASS]: test_2 sessionization.txt
+```
+├── README.md 
+├── run.sh
+├── src
+│   └── sessionization.py
+├── input
+│   └── inactivity_period.txt
+│   └── log.csv
+├── output
+|   └── sessionization.txt
+├── insight_testsuite
+    └── run_tests.sh
+    └── tests
+        └── test_1
+        |   ├── input
+        |   │   └── inactivity_period.txt
+        |   │   └── log.csv
+        |   |__ output
+        |   │   └── sessionization.txt
+        ├── your-own-test_1
+            ├── input
+            │   └── your-own-inputs
+            |── output
+                └── sessionization.txt
 ```
 
-### Discussion about large data set
-- I thought about using list or queue to store and update the state of ip and datetime of latest requests. But I gave it up after considering the traverse will take O(n) every time when you see the new datetime from input. Instead I use dictionary(hashmap) to maintain the state of IP and its datetime of last weblog request in that session. 
+### Run Instructions
+
+ `run.sh` in the top-most directory of my repo will execute the python script as below
+
+```bash
+#!/bin/bash
+python ./src/sessionization.py
+```
+
+You can run `run.sh` with the following command from top-most directory of the repo 
+
+```
+edgar-analytics~$ ./run.sh 
+```
+
+### Testing
+
+Test1: I changed the inactivity_period and modified the `log.csv` to test my code. It works well under different values of inactivity period and differnt log data. 
+
+Test2: In my own test fold, I changed the value of inactivity period from 2 seconds to 3 seconds and kept the `log.csv` file as same. The result was as same as my expected.
+
+Test3: Moreover, I would like to test my script with the big dataset, so I downloaded [a real EDGAR log file](http://www.sec.gov/dera/data/Public-EDGAR-log-file-data/2017/Qtr2/log20170630.zip), `log20170630.zip`, directly from [directly from the SEC](https://www.sec.gov/dera/data/edgar-log-file-data-set.html). But due to the file size limit on Github is 100 MB, I only fetch the first eight hundreds thousands records plus the header as my test input file. 
+
+And I also set a 60 seconds inactivity window in `inactivity_period.txt`
+
+```shell
+$ cd edgar-analytics/insight_testsuite/tests/test_2/input
+$ ls -l
+log.csv inactivity_period.txt
+```
+
+And it passed both default testsuite and my own testsuite with a log as below
+
+```
+[PASS]: test_1 sessionization.txt
+[PASS]: test_2 sessionization.txt
+[Mon May 28 23:51:42 PDT 2018] 2 of 2 tests passed
+```
+
+### Discussion 
+
+##### If the input has a large number of records in batch mode
+
+I thought about using list or queue to store and update the state of ip and datetime of latest requests. But I gave it up after considering the traverse will take O(n) every time when you see the new datetime from input. Instead I use dictionary(hashmap) to maintain the state of IP and its datetime of last weblog request in that session. 
+
 The good side is that it only takes amorted O(1) to update the state of each ip or datetime of last request. But you have to keep it in the memory all the time and then it has a risk to give you out-of-memory error when the inactivity window is super long and the input stream is super huge. 
 
-- Because ips are irrelevant of each other, so we can maintain and update their state independently. So the better solution for large number of input records is to use distributed solution (e.g. Spark, MapReduce) to split different ips to different workers, but sending all the requests of the same ip to the same worker, which can be implemented by the shuffle stage in those solution. It will reduce the risk of OOM when using dictionary / hashmap while enjoying their advantage.
+Because ips are irrelevant of each other, so we can maintain and update their state independently. So the better solution for large number of input records is to use distributed solution (e.g. Spark, MapReduce) to split different ips to different workers, but sending all the requests of the same ip to the same worker, which can be implemented by the shuffle stage in those solutions. Then we can get rid of 
+
+##### If the input is a realtime stream, and very dense
+
+Flink or Spark Streaming could also be the distributed and realtime solution in this case.
+
+Take Flink as example, the general dataflow should be as follows.
+
+* Define return type as `Tuple2<String, Tuple5<String, String, String, String, String>>`, which is mapping to `<key=ip, value=dict('ip', 'first_dt', 'last_dt', 'duration', 'count')>`
+
+* Monitor the log file and only read if seeing new records appended to the file under `PROCESS_ONLY_APPENDED` mode
+
+* Use `keyBy(ip)` to set up the dataflow for each ip
+
+* Use `EventTimeSessionWindow` to set up the inactivity window, so it will automatically write inactive session to output after the session is over.
+
+```java
+DataStream<Tuple2<String, Tuple5<String, String, String, String, String>>> dataStream =
+    env.readFileStream(path, Time.seconds(1).toMilliseconds(), WatchType.PROCESS_ONLY_APPENDED)
+        // extract selected fields
+        .map(new ExtractFields())
+    	// use EventTime (available in data) as timestamp 
+        .assignTimestamps(new AccessLogTimestampsGenerator())
+		// extract <key=ip, value=dict('ip', 'first_dt', 'last_dt', 'duration', 'count')>
+        .map(new ExtractKeyValue())
+        // "0" means first field, which is IP, 
+    	// then it will split the dataflow to different workers by IP
+        .keyBy(0)
+		// set the inactivity window based on EventTime
+    	// trigger the aggregation when session is over
+        .window(EventTimeSessionWindow.of(Time.hours(inactivity_window)))
+        // sum column count for each IP
+        .sum('count');
+// write aggregation result ot output via OUTPUTSink Function
+dataStream.addSink(new OUTPUTSink());
+```
+
+
+
+
+
+
+
+
+
+
+
